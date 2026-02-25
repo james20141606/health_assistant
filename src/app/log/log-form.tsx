@@ -340,7 +340,7 @@ export default function LogForm() {
             />
           </div>
           <div>
-            <label className="label">沃诺拉赞 (mg)</label>
+            <label className="label">伏诺拉生 (mg)</label>
             <input
               type="number"
               className="input"
@@ -350,7 +350,7 @@ export default function LogForm() {
               onChange={(e) =>
                 setMeds({ ...meds, vonoprazan_mg: Number(e.target.value) || 0 })
               }
-              placeholder="10"
+              placeholder="20"
             />
           </div>
         </div>

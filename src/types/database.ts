@@ -67,7 +67,7 @@ export const DEFAULT_TRIGGERS: Triggers = {
 export const DEFAULT_MEDS: Meds = {
   omeprazole_mg: 0,
   famotidine_mg: 20,
-  vonoprazan_mg: 10,
+  vonoprazan_mg: 20,
 };
 
 export const DEFAULT_WORKOUT: Workout = {
