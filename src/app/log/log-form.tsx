@@ -135,6 +135,7 @@ export default function LogForm() {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
+      alert("未登录，请重新登录");
       setSaving(false);
       return;
     }
@@ -156,16 +157,26 @@ export default function LogForm() {
     };
 
     if (existingId) {
-      await supabase
+      const { error } = await supabase
         .from("daily_logs")
         .update({ ...record, updated_at: new Date().toISOString() })
         .eq("id", existingId);
+      if (error) {
+        alert("更新失败: " + error.message);
+        setSaving(false);
+        return;
+      }
     } else {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("daily_logs")
         .insert(record)
         .select("id")
         .single();
+      if (error) {
+        alert("保存失败: " + error.message);
+        setSaving(false);
+        return;
+      }
       if (data) setExistingId(data.id);
     }
 
