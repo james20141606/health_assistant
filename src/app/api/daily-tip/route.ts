@@ -100,7 +100,7 @@ ${HEALTH_RULES}
 
     const completion = await openai.chat.completions.create({
       model: "gpt-5.2",
-      max_tokens: 256,
+      max_completion_tokens: 256,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `今天是${today}。${summary}。请给一条贴士。` },
