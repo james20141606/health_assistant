@@ -233,8 +233,9 @@ ${Object.entries(triggerCorrelations)
     return NextResponse.json({ insight, structured: outputStructured });
   } catch (error) {
     console.error("Analysis error:", error);
+    const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "分析失败，请稍后重试" },
+      { error: `分析失败: ${msg}` },
       { status: 500 }
     );
   }
