@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase-client";
 import { BottomNav } from "@/components/nav";
+import { Chat } from "@/components/chat";
 import { DailyLog, AiInsight, Triggers } from "@/types/database";
 import { triggerLabel } from "@/lib/helpers";
 import {
@@ -420,6 +421,9 @@ export default function InsightsPage() {
               </p>
             )}
           </div>
+
+          {/* Chat */}
+          <Chat />
         </>
       )}
 
