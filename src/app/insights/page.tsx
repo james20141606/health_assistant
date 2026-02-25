@@ -26,6 +26,8 @@ export default function InsightsPage() {
   const [range, setRange] = useState<Range>(7);
   const [loading, setLoading] = useState(true);
   const [insight, setInsight] = useState<AiInsight | null>(null);
+  const [pastInsights, setPastInsights] = useState<AiInsight[]>([]);
+  const [showPastInsights, setShowPastInsights] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [prevLogs, setPrevLogs] = useState<DailyLog[]>([]);
 
@@ -74,6 +76,16 @@ export default function InsightsPage() {
       .maybeSingle();
 
     setInsight((insightData as AiInsight) || null);
+
+    // Load past insights (skip latest)
+    const { data: pastData } = await supabase
+      .from("ai_insights")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("date", { ascending: false })
+      .range(1, 10);
+
+    setPastInsights((pastData as AiInsight[]) || []);
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range]);
@@ -421,6 +433,46 @@ export default function InsightsPage() {
               </p>
             )}
           </div>
+
+          {/* Past Insights */}
+          {pastInsights.length > 0 && (
+            <div style={{ marginBottom: "0.75rem" }}>
+              <button
+                className="btn btn-outline btn-sm"
+                style={{ width: "100%", fontSize: "0.7rem" }}
+                onClick={() => setShowPastInsights(!showPastInsights)}
+              >
+                {showPastInsights ? "收起历史分析" : `查看历史分析 (${pastInsights.length}条)`}
+              </button>
+              {showPastInsights && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  {pastInsights.map((pi) => {
+                    const p = pi.output_structured;
+                    return (
+                      <div key={pi.id} className="card" style={{ padding: "0.75rem" }}>
+                        <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--primary)", marginBottom: "0.375rem" }}>
+                          {pi.date}
+                        </div>
+                        {p ? (
+                          <div style={{ fontSize: "0.75rem", lineHeight: 1.5 }}>
+                            <div><strong>重点：</strong>{p.today_focus}</div>
+                            {p.weekly_pattern && (
+                              <div style={{ marginTop: "0.25rem" }}><strong>趋势：</strong>{p.weekly_pattern}</div>
+                            )}
+                            <div style={{ marginTop: "0.25rem" }}><strong>实验：</strong>{p.experiment}</div>
+                          </div>
+                        ) : pi.output_text ? (
+                          <div style={{ fontSize: "0.75rem", whiteSpace: "pre-wrap", maxHeight: "6rem", overflow: "hidden" }}>
+                            {pi.output_text.slice(0, 300)}...
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Chat */}
           <Chat />

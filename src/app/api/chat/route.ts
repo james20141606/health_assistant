@@ -7,9 +7,30 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "",
 });
 
-interface ChatMessage {
+interface ChatMsg {
   role: "user" | "assistant";
   content: string;
+}
+
+async function compressMemory(messages: ChatMsg[]): Promise<string> {
+  const conversation = messages
+    .map((m) => `${m.role === "user" ? "用户" : "助手"}: ${m.content}`)
+    .join("\n");
+
+  const res = await openai.chat.completions.create({
+    model: "gpt-5.2",
+    max_completion_tokens: 300,
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content:
+          "你是一个对话摘要助手。请将以下健康对话压缩为简洁的要点摘要（中文），保留关键健康信息、用户关心的问题、给出的建议。不超过200字。",
+      },
+      { role: "user", content: conversation },
+    ],
+  });
+  return res.choices[0]?.message?.content || "";
 }
 
 export async function POST(req: Request) {
@@ -26,12 +47,137 @@ export async function POST(req: Request) {
       });
     }
 
-    const { message, history } = (await req.json()) as {
+    const body = await req.json();
+
+    // Handle different actions
+    if (body.action === "load") {
+      // Load today's messages + memory summary
+      const today = new Date().toISOString().slice(0, 10);
+
+      const { data: todayMsgs } = await supabase
+        .from("chat_messages")
+        .select("role, content, created_at")
+        .eq("user_id", user.id)
+        .eq("session_date", today)
+        .order("created_at", { ascending: true });
+
+      const { data: memory } = await supabase
+        .from("chat_summaries")
+        .select("summary_text, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      return new Response(
+        JSON.stringify({
+          messages: todayMsgs || [],
+          memory: memory?.summary_text || null,
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    if (body.action === "history") {
+      // Load chat history dates
+      const { data: dates } = await supabase
+        .from("chat_messages")
+        .select("session_date")
+        .eq("user_id", user.id)
+        .order("session_date", { ascending: false });
+
+      // Deduplicate dates
+      const uniqueDates = [...new Set((dates || []).map((d: { session_date: string }) => d.session_date))];
+
+      return new Response(JSON.stringify({ dates: uniqueDates }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (body.action === "load_date") {
+      // Load messages for a specific date
+      const { data: msgs } = await supabase
+        .from("chat_messages")
+        .select("role, content, created_at")
+        .eq("user_id", user.id)
+        .eq("session_date", body.date)
+        .order("created_at", { ascending: true });
+
+      return new Response(JSON.stringify({ messages: msgs || [] }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Default: send message
+    const { message, history } = body as {
       message: string;
-      history: ChatMessage[];
+      history: ChatMsg[];
     };
 
-    // Get recent 7 days of logs for context
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Save user message
+    await supabase.from("chat_messages").insert({
+      user_id: user.id,
+      session_date: today,
+      role: "user",
+      content: message,
+    });
+
+    // Check if we need to compress older messages
+    const { count } = await supabase
+      .from("chat_messages")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("session_date", today);
+
+    let memoryContext = "";
+
+    // Load existing memory summary
+    const { data: existingMemory } = await supabase
+      .from("chat_summaries")
+      .select("summary_text")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingMemory?.summary_text) {
+      memoryContext = existingMemory.summary_text;
+    }
+
+    // If today's messages exceed 30, compress older ones into memory
+    if ((count || 0) > 30) {
+      // Get all today's messages for compression
+      const { data: allToday } = await supabase
+        .from("chat_messages")
+        .select("role, content")
+        .eq("user_id", user.id)
+        .eq("session_date", today)
+        .order("created_at", { ascending: true });
+
+      if (allToday && allToday.length > 20) {
+        const toCompress = allToday.slice(0, -10) as ChatMsg[];
+        const summary = await compressMemory(toCompress);
+
+        const fullSummary = memoryContext
+          ? `${memoryContext}\n\n---\n${today}对话摘要：${summary}`
+          : `${today}对话摘要：${summary}`;
+
+        await supabase.from("chat_summaries").upsert(
+          {
+            user_id: user.id,
+            summary_text: fullSummary,
+            messages_count: allToday.length,
+          },
+          { onConflict: "user_id" }
+        );
+
+        memoryContext = fullSummary;
+      }
+    }
+
+    // Get recent 7 days of logs
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - 7);
 
@@ -42,7 +188,6 @@ export async function POST(req: Request) {
       .gte("date", startDate.toISOString().slice(0, 10))
       .order("date", { ascending: true });
 
-    // Build data summary
     let dataSummary = "暂无近期打卡数据。";
     if (logs && logs.length > 0) {
       const typedLogs = logs as DailyLog[];
@@ -61,21 +206,15 @@ export async function POST(req: Request) {
       const triggerKeys: (keyof Triggers)[] = ["milk_tea", "coffee", "spicy", "late_meal", "alcohol"];
       const triggerDays = triggerKeys
         .map((k) => {
-          const count = typedLogs.filter((l) => l.triggers?.[k]).length;
-          return count > 0 ? `${k}(${count}天)` : null;
+          const c = typedLogs.filter((l) => l.triggers?.[k]).length;
+          return c > 0 ? `${k}(${c}天)` : null;
         })
         .filter(Boolean);
 
       const latest = typedLogs[typedLogs.length - 1];
-
-      dataSummary = `近${typedLogs.length}天数据摘要：
-- 平均睡眠 ${avgSleep}h，压力 ${avgStress}/10，胃酸 ${avgReflux}/10，胸闷 ${avgBreathless}/10
-- 总运动 ${totalWorkout} 分钟
-- 触发因素：${triggerDays.length > 0 ? triggerDays.join("、") : "无"}
-- 最新一天(${latest.date})：睡眠${latest.sleep_hours || "?"}h，压力${latest.stress}，胃酸${latest.reflux}，胸闷${latest.breathless}`;
+      dataSummary = `近${typedLogs.length}天: 睡眠${avgSleep}h, 压力${avgStress}/10, 胃酸${avgReflux}/10, 胸闷${avgBreathless}/10, 运动${totalWorkout}min, 触发:${triggerDays.length > 0 ? triggerDays.join("/") : "无"}, 最新(${latest.date}): 睡${latest.sleep_hours || "?"}h 压${latest.stress} 酸${latest.reflux}`;
     }
 
-    // Get latest AI insight if available
     const { data: insightData } = await supabase
       .from("ai_insights")
       .select("output_text")
@@ -85,33 +224,33 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     const insightContext = insightData?.output_text
-      ? `\n\n最近一次 AI 分析结果：\n${insightData.output_text}`
+      ? `\n最近AI分析：${insightData.output_text.slice(0, 500)}`
       : "";
 
-    const systemPrompt = `你是徐鹏（陈旭鹏）的专属健康管理助手。你非常了解他的完整病史和身体状况。用户可以跟你自由对话，问任何健康相关问题。
+    const memorySection = memoryContext
+      ? `\n\n## 历史对话记忆\n${memoryContext}`
+      : "";
+
+    const systemPrompt = `你是徐鹏（陈旭鹏）的专属健康管理助手。
 
 ${PATIENT_PROFILE}
 
 ${HEALTH_RULES}
 
-## 当前健康数据
-${dataSummary}${insightContext}
+## 当前数据
+${dataSummary}${insightContext}${memorySection}
 
 ## 对话风格
-- 像一个了解他多年的老朋友兼健康顾问在聊天
-- 回答简洁，不要太长（一般3-5句话）
-- 结合他的实际数据和病史回答
-- 可以主动关联他的数据模式（比如"你最近胃酸偏高，是不是压力又大了？"）
-- 用中文回答`;
+- 像了解他多年的老朋友兼健康顾问
+- 简洁，一般3-5句话
+- 结合实际数据和病史回答
+- 用中文`;
 
-    // Build messages array
     const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
       { role: "system", content: systemPrompt },
     ];
 
-    // Add conversation history (keep last 20 messages to stay within context)
-    const recentHistory = history.slice(-20);
-    for (const msg of recentHistory) {
+    for (const msg of (history || []).slice(-20)) {
       messages.push({ role: msg.role, content: msg.content });
     }
     messages.push({ role: "user", content: message });
@@ -124,17 +263,26 @@ ${dataSummary}${insightContext}
       stream: true,
     });
 
-    // Return streaming response
+    let fullResponse = "";
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
         for await (const chunk of stream) {
           const text = chunk.choices[0]?.delta?.content || "";
           if (text) {
+            fullResponse += text;
             controller.enqueue(encoder.encode(text));
           }
         }
         controller.close();
+
+        // Save assistant response after stream completes
+        await supabase.from("chat_messages").insert({
+          user_id: user.id,
+          session_date: today,
+          role: "assistant",
+          content: fullResponse,
+        });
       },
     });
 
