@@ -9,6 +9,7 @@ export interface Triggers {
 export interface Meds {
   omeprazole_mg: number;
   famotidine_mg: number;
+  vonoprazan_mg: number;
 }
 
 export interface Workout {
@@ -65,7 +66,8 @@ export const DEFAULT_TRIGGERS: Triggers = {
 
 export const DEFAULT_MEDS: Meds = {
   omeprazole_mg: 0,
-  famotidine_mg: 0,
+  famotidine_mg: 20,
+  vonoprazan_mg: 10,
 };
 
 export const DEFAULT_WORKOUT: Workout = {

@@ -299,7 +299,7 @@ export default function LogForm() {
         <h2 style={{ fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.75rem" }}>
           用药
         </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem" }}>
           <div>
             <label className="label">奥美拉唑 (mg)</label>
             <input
@@ -325,7 +325,21 @@ export default function LogForm() {
               onChange={(e) =>
                 setMeds({ ...meds, famotidine_mg: Number(e.target.value) || 0 })
               }
-              placeholder="0"
+              placeholder="20"
+            />
+          </div>
+          <div>
+            <label className="label">沃诺拉赞 (mg)</label>
+            <input
+              type="number"
+              className="input"
+              min={0}
+              step={5}
+              value={meds.vonoprazan_mg || ""}
+              onChange={(e) =>
+                setMeds({ ...meds, vonoprazan_mg: Number(e.target.value) || 0 })
+              }
+              placeholder="10"
             />
           </div>
         </div>

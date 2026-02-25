@@ -53,7 +53,7 @@ function computeAggregates(logs: DailyLog[], days: number) {
 
   const medDays = recent.filter(
     (l) =>
-      (l.meds?.omeprazole_mg || 0) > 0 || (l.meds?.famotidine_mg || 0) > 0
+      (l.meds?.omeprazole_mg || 0) > 0 || (l.meds?.famotidine_mg || 0) > 0 || (l.meds?.vonoprazan_mg || 0) > 0
   ).length;
 
   const latestSleepLog = [...recent]
