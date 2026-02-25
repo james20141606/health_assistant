@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { DailyLog, Triggers } from "@/types/database";
+import { PATIENT_PROFILE, HEALTH_RULES } from "@/lib/medical-profile";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "",
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || "",
 });
 
 function computeAggregates(logs: DailyLog[], days: number) {
@@ -145,22 +146,20 @@ export async function POST() {
       latestLog: logs[logs.length - 1],
     };
 
-    const systemPrompt = `你是一个个人健康管理助手。基于用户的健康日志数据，提供个性化的生活建议。
+    const systemPrompt = `你是徐鹏（陈旭鹏）的专属健康管理助手。你非常了解他的完整病史和身体状况，基于他的每日健康日志数据，提供高度个性化的生活建议。
 
-重要规则：
-- 你不是医生，所有建议仅供生活管理参考
-- 不做医疗诊断，不建议用药方案变更
-- 发现异常模式时建议"咨询医生"
-- 建议要具体、可执行、简短
-- 用中文回答
+${PATIENT_PROFILE}
+
+${HEALTH_RULES}
 
 你必须严格按照以下 JSON 格式回复，不要添加任何其他文字：
 
 {
-  "today_focus": "今天最需要关注的1-2个要点（一句话）",
+  "today_focus": "今天最需要关注的1-2个要点（一句话，结合他的病史）",
   "micro_actions": ["具体小动作1", "具体小动作2", "具体小动作3"],
-  "risk_flags": ["需要注意的信号（如有）"],
-  "experiment": "建议一个7天小实验"
+  "risk_flags": ["需要注意的信号（结合他的胃炎/焦虑/息肉病史判断）"],
+  "weekly_pattern": "本周数据相比上周的变化趋势（一句话总结）",
+  "experiment": "建议一个7天小实验（针对他当前最突出的问题）"
 }`;
 
     const userPrompt = `以下是我最近的健康数据摘要：
@@ -191,15 +190,17 @@ ${Object.entries(triggerCorrelations)
 
 请根据以上数据给出结构化建议。`;
 
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5.2",
       max_tokens: 1024,
-      messages: [{ role: "user", content: userPrompt }],
-      system: systemPrompt,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.7,
     });
 
-    const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "";
+    const responseText = completion.choices[0]?.message?.content || "";
 
     // Try to parse structured output
     let outputStructured = null;

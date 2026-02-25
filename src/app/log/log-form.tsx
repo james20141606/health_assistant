@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-client";
 import { BottomNav } from "@/components/nav";
+import { Greeting } from "@/components/greeting";
+import { DailyTipCard } from "@/components/daily-tip";
+import { StreakCard } from "@/components/streak-card";
 import {
   DailyLog,
   Triggers,
@@ -171,26 +174,19 @@ export default function LogForm() {
     setTimeout(() => setSaved(false), 2000);
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    window.location.href = "/auth";
-  }
-
   return (
-    <div style={{ padding: "1rem", paddingBottom: "5rem", maxWidth: "500px", margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <div>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>每日打卡</h1>
-          <p style={{ fontSize: "0.7rem", color: "var(--muted)", margin: 0 }}>{userName}</p>
-        </div>
-        <button className="btn btn-outline btn-sm" onClick={handleLogout}>
-          退出
-        </button>
-      </div>
+    <div className="page-enter" style={{ padding: "1rem", paddingBottom: "5rem", maxWidth: "500px", margin: "0 auto" }}>
+      {/* Greeting */}
+      <Greeting email={userName} />
+
+      {/* Daily Tip */}
+      <DailyTipCard />
+
+      {/* Streak */}
+      <StreakCard />
 
       {/* Date + Copy Yesterday */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
         <input
           type="date"
           className="input"
@@ -238,8 +234,8 @@ export default function LogForm() {
             <div
               style={{
                 padding: "0.625rem 0.75rem",
-                background: "var(--card)",
-                borderRadius: "0.5rem",
+                background: "var(--bg)",
+                borderRadius: "0.75rem",
                 fontSize: "0.875rem",
                 fontWeight: 600,
                 color: sleepHours < 6 ? "var(--danger)" : sleepHours < 7 ? "var(--warning)" : "var(--success)",
@@ -418,7 +414,7 @@ export default function LogForm() {
       {/* Save */}
       <button
         className="btn btn-primary"
-        style={{ width: "100%", padding: "0.875rem", fontSize: "1rem" }}
+        style={{ width: "100%", padding: "0.875rem", fontSize: "1rem", borderRadius: "0.875rem" }}
         onClick={handleSave}
         disabled={saving}
       >

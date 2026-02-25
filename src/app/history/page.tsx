@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase-client";
 import { BottomNav } from "@/components/nav";
+import { CalendarHeatmap } from "@/components/calendar-heatmap";
 import { DailyLog } from "@/types/database";
 import { formatDate, triggerLabel } from "@/lib/helpers";
 import { useRouter } from "next/navigation";
@@ -127,13 +128,13 @@ export default function HistoryPage() {
   };
 
   return (
-    <div style={{ padding: "1rem", paddingBottom: "5rem", maxWidth: "500px", margin: "0 auto" }}>
-      <h1 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "1rem" }}>
+    <div className="page-enter" style={{ padding: "1rem", paddingBottom: "5rem", maxWidth: "500px", margin: "0 auto" }}>
+      <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1rem", letterSpacing: "-0.02em" }}>
         历史记录
       </h1>
 
       {/* Month picker + export */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
         <input
           type="month"
           className="input"
@@ -149,10 +150,19 @@ export default function HistoryPage() {
         </button>
       </div>
 
+      {/* Calendar Heatmap */}
+      {!loading && logs.length > 0 && (
+        <CalendarHeatmap logs={logs} month={month} />
+      )}
+
       {loading ? (
-        <p style={{ color: "var(--muted)", textAlign: "center", padding: "2rem" }}>
-          加载中...
-        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="card">
+              <div className="skeleton" style={{ height: "3rem" }} />
+            </div>
+          ))}
+        </div>
       ) : logs.length === 0 ? (
         <p style={{ color: "var(--muted)", textAlign: "center", padding: "2rem" }}>
           本月无记录

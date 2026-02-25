@@ -51,6 +51,7 @@ export interface StructuredInsight {
   today_focus: string;
   micro_actions: string[];
   risk_flags: string[];
+  weekly_pattern?: string;
   experiment: string;
 }
 
@@ -72,5 +73,15 @@ export const DEFAULT_WORKOUT: Workout = {
   minutes: 0,
   rpe: 0,
 };
+
+export interface DailyTip {
+  id: string;
+  user_id: string;
+  date: string;
+  tip_text: string;
+  tip_title: string;
+  tip_category: string;
+  created_at: string;
+}
 
 export type DailyLogInsert = Omit<DailyLog, "id" | "created_at" | "updated_at">;

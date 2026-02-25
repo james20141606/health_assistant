@@ -26,6 +26,7 @@ export default function InsightsPage() {
   const [loading, setLoading] = useState(true);
   const [insight, setInsight] = useState<AiInsight | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [prevLogs, setPrevLogs] = useState<DailyLog[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,6 +46,22 @@ export default function InsightsPage() {
       .order("date", { ascending: true });
 
     setLogs((logsData as DailyLog[]) || []);
+
+    // Load previous period for comparison
+    const prevStart = new Date();
+    prevStart.setDate(prevStart.getDate() - range * 2);
+    const prevEnd = new Date();
+    prevEnd.setDate(prevEnd.getDate() - range);
+
+    const { data: prevData } = await supabase
+      .from("daily_logs")
+      .select("*")
+      .eq("user_id", user.id)
+      .gte("date", prevStart.toISOString().slice(0, 10))
+      .lt("date", prevEnd.toISOString().slice(0, 10))
+      .order("date", { ascending: true });
+
+    setPrevLogs((prevData as DailyLog[]) || []);
 
     // Load latest insight
     const { data: insightData } = await supabase
@@ -117,35 +134,45 @@ export default function InsightsPage() {
     };
   });
 
-  // Summary stats
-  const avgSleep =
-    logs.length > 0
-      ? Math.round(
-          (logs.reduce((s, l) => s + (l.sleep_hours || 0), 0) / logs.length) * 10
-        ) / 10
-      : 0;
-  const avgStress =
-    logs.length > 0
-      ? Math.round(
-          (logs.reduce((s, l) => s + l.stress, 0) / logs.length) * 10
-        ) / 10
-      : 0;
-  const avgReflux =
-    logs.length > 0
-      ? Math.round(
-          (logs.reduce((s, l) => s + l.reflux, 0) / logs.length) * 10
-        ) / 10
-      : 0;
-  const totalWorkout = logs.reduce(
-    (s, l) => s + (l.workout?.minutes || 0),
-    0
-  );
+  // Summary stats with comparison
+  function avg(arr: DailyLog[], fn: (l: DailyLog) => number): number {
+    if (arr.length === 0) return 0;
+    return Math.round((arr.reduce((s, l) => s + fn(l), 0) / arr.length) * 10) / 10;
+  }
+
+  const avgSleep = avg(logs, (l) => l.sleep_hours || 0);
+  const avgStress = avg(logs, (l) => l.stress);
+  const avgReflux = avg(logs, (l) => l.reflux);
+  const totalWorkout = logs.reduce((s, l) => s + (l.workout?.minutes || 0), 0);
+
+  const prevAvgSleep = avg(prevLogs, (l) => l.sleep_hours || 0);
+  const prevAvgStress = avg(prevLogs, (l) => l.stress);
+  const prevAvgReflux = avg(prevLogs, (l) => l.reflux);
+  const prevTotalWorkout = prevLogs.reduce((s, l) => s + (l.workout?.minutes || 0), 0);
+
+  function trendArrow(current: number, prev: number, lowerIsBetter: boolean): string {
+    if (prev === 0) return "";
+    const diff = current - prev;
+    if (Math.abs(diff) < 0.3) return "";
+    const isUp = diff > 0;
+    const isGood = lowerIsBetter ? !isUp : isUp;
+    return isGood ? " ↑" : " ↓";
+  }
+
+  function trendColor(current: number, prev: number, lowerIsBetter: boolean): string {
+    if (prev === 0) return "var(--muted)";
+    const diff = current - prev;
+    if (Math.abs(diff) < 0.3) return "var(--muted)";
+    const isUp = diff > 0;
+    const isGood = lowerIsBetter ? !isUp : isUp;
+    return isGood ? "var(--success)" : "var(--danger)";
+  }
 
   const parsed = insight?.output_structured;
 
   return (
-    <div style={{ padding: "1rem", paddingBottom: "5rem", maxWidth: "500px", margin: "0 auto" }}>
-      <h1 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "1rem" }}>
+    <div className="page-enter" style={{ padding: "1rem", paddingBottom: "5rem", maxWidth: "500px", margin: "0 auto" }}>
+      <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1rem", letterSpacing: "-0.02em" }}>
         数据分析
       </h1>
 
@@ -163,16 +190,20 @@ export default function InsightsPage() {
       </div>
 
       {loading ? (
-        <p style={{ textAlign: "center", color: "var(--muted)", padding: "2rem" }}>
-          加载中...
-        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="card">
+              <div className="skeleton" style={{ height: "4rem" }} />
+            </div>
+          ))}
+        </div>
       ) : logs.length === 0 ? (
         <p style={{ textAlign: "center", color: "var(--muted)", padding: "2rem" }}>
           暂无数据，先去打卡吧
         </p>
       ) : (
         <>
-          {/* Summary */}
+          {/* Summary with trends */}
           <div
             style={{
               display: "grid",
@@ -182,16 +213,45 @@ export default function InsightsPage() {
             }}
           >
             {[
-              { label: "睡眠", value: `${avgSleep}h`, color: avgSleep < 7 ? "var(--warning)" : "var(--success)" },
-              { label: "压力", value: String(avgStress), color: avgStress >= 7 ? "var(--danger)" : "var(--fg)" },
-              { label: "胃酸", value: String(avgReflux), color: avgReflux >= 5 ? "var(--danger)" : "var(--fg)" },
-              { label: "运动", value: `${totalWorkout}m`, color: "var(--fg)" },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="card" style={{ textAlign: "center", padding: "0.75rem 0.5rem" }}>
-                <div style={{ fontSize: "0.65rem", color: "var(--muted)", textTransform: "uppercase" }}>
+              {
+                label: "睡眠",
+                value: `${avgSleep}h`,
+                color: avgSleep < 7 ? "var(--warning)" : "var(--success)",
+                trend: trendArrow(avgSleep, prevAvgSleep, false),
+                trendColor: trendColor(avgSleep, prevAvgSleep, false),
+              },
+              {
+                label: "压力",
+                value: String(avgStress),
+                color: avgStress >= 7 ? "var(--danger)" : "var(--fg)",
+                trend: trendArrow(avgStress, prevAvgStress, true),
+                trendColor: trendColor(avgStress, prevAvgStress, true),
+              },
+              {
+                label: "胃酸",
+                value: String(avgReflux),
+                color: avgReflux >= 5 ? "var(--danger)" : "var(--fg)",
+                trend: trendArrow(avgReflux, prevAvgReflux, true),
+                trendColor: trendColor(avgReflux, prevAvgReflux, true),
+              },
+              {
+                label: "运动",
+                value: `${totalWorkout}m`,
+                color: "var(--fg)",
+                trend: trendArrow(totalWorkout, prevTotalWorkout, false),
+                trendColor: trendColor(totalWorkout, prevTotalWorkout, false),
+              },
+            ].map(({ label, value, color, trend, trendColor: tc }) => (
+              <div key={label} className="stat-card">
+                <div style={{ fontSize: "0.65rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.25rem" }}>
                   {label}
                 </div>
                 <div style={{ fontSize: "1.25rem", fontWeight: 700, color }}>{value}</div>
+                {trend && (
+                  <div style={{ fontSize: "0.65rem", fontWeight: 600, color: tc, marginTop: "0.125rem" }}>
+                    {trend}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -207,9 +267,9 @@ export default function InsightsPage() {
                 <XAxis dataKey="date" fontSize={10} />
                 <YAxis domain={[0, 10]} fontSize={10} />
                 <Tooltip />
-                <Line type="monotone" dataKey="sleep" stroke="#22c55e" strokeWidth={2} name="睡眠(h)" dot={false} />
-                <Line type="monotone" dataKey="stress" stroke="#f59e0b" strokeWidth={2} name="压力" dot={false} />
-                <Line type="monotone" dataKey="reflux" stroke="#ef4444" strokeWidth={2} name="胃酸" dot={false} />
+                <Line type="monotone" dataKey="sleep" stroke="#34d399" strokeWidth={2} name="睡眠(h)" dot={false} />
+                <Line type="monotone" dataKey="stress" stroke="#fbbf24" strokeWidth={2} name="压力" dot={false} />
+                <Line type="monotone" dataKey="reflux" stroke="#ff6b6b" strokeWidth={2} name="胃酸" dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -225,7 +285,7 @@ export default function InsightsPage() {
                 <XAxis dataKey="date" fontSize={10} />
                 <YAxis fontSize={10} />
                 <Tooltip />
-                <Bar dataKey="workout" fill="var(--primary)" name="运动(min)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="workout" fill="#ff8a65" name="运动(min)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -317,6 +377,12 @@ export default function InsightsPage() {
                         </li>
                       ))}
                     </ul>
+                  </div>
+                )}
+                {parsed.weekly_pattern && (
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <strong>本周趋势：</strong>
+                    <p style={{ margin: "0.25rem 0" }}>{parsed.weekly_pattern}</p>
                   </div>
                 )}
                 <div style={{ marginBottom: "0.5rem" }}>

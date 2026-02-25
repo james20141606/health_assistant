@@ -1,31 +1,61 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #ffffff;
-  --fg: #171717;
-  --card: #f9fafb;
-  --border: #e5e7eb;
-  --primary: #2563eb;
+  --bg: #faf9f7;
+  --fg: #1a1a1a;
+  --card: #ffffff;
+  --border: #e8e4df;
+  --primary: #ff6b6b;
   --primary-fg: #ffffff;
-  --muted: #6b7280;
+  --primary-light: #fff0f0;
+  --muted: #8a8580;
   --danger: #ef4444;
-  --success: #22c55e;
-  --warning: #f59e0b;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --accent: #ff8a65;
+
+  /* Heatmap scale */
+  --heatmap-0: #f0eeeb;
+  --heatmap-1: #fde8d0;
+  --heatmap-2: #fbc99b;
+  --heatmap-3: #f5a060;
+  --heatmap-4: #e8753a;
+  --heatmap-5: #d44a1a;
+
+  /* Heatmap green (sleep - inverted) */
+  --heatmap-green-1: #d1fae5;
+  --heatmap-green-2: #6ee7b7;
+  --heatmap-green-3: #34d399;
+  --heatmap-green-4: #10b981;
+  --heatmap-green-5: #059669;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0a0a0a;
-    --fg: #ededed;
-    --card: #1a1a1a;
-    --border: #2a2a2a;
-    --primary: #3b82f6;
-    --primary-fg: #ffffff;
-    --muted: #9ca3af;
-    --danger: #f87171;
-    --success: #4ade80;
-    --warning: #fbbf24;
-  }
+[data-theme="dark"] {
+  --bg: #121110;
+  --fg: #ede9e4;
+  --card: #1e1c1a;
+  --border: #2e2b28;
+  --primary: #ff8a8a;
+  --primary-fg: #1a1a1a;
+  --primary-light: #2a1a1a;
+  --muted: #9a9590;
+  --danger: #f87171;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --accent: #ffab91;
+
+  --heatmap-0: #1e1c1a;
+  --heatmap-1: #2d2318;
+  --heatmap-2: #3d3020;
+  --heatmap-3: #5a4025;
+  --heatmap-4: #7a5030;
+  --heatmap-5: #a0603a;
+
+  --heatmap-green-1: #132a1e;
+  --heatmap-green-2: #1a4030;
+  --heatmap-green-3: #206040;
+  --heatmap-green-4: #288050;
+  --heatmap-green-5: #30a060;
 }
 
 * {
@@ -35,9 +65,10 @@
 body {
   background: var(--bg);
   color: var(--fg);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   margin: 0;
+  transition: background 0.3s, color 0.3s;
 }
 
 /* Utility classes */
@@ -47,21 +78,28 @@ body {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.625rem 1.25rem;
-  border-radius: 0.5rem;
-  font-weight: 500;
+  border-radius: 0.75rem;
+  font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
   border: none;
-  transition: opacity 0.15s;
+  transition: all 0.2s ease;
 }
 
 .btn:hover {
-  opacity: 0.85;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.btn:active {
+  transform: translateY(0);
 }
 
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .btn-primary {
@@ -83,28 +121,140 @@ body {
 .btn-sm {
   padding: 0.375rem 0.75rem;
   font-size: 0.75rem;
+  border-radius: 0.625rem;
 }
 
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: 1rem;
   padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: background 0.3s, border-color 0.3s;
+}
+
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 0.875rem 0.75rem;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s;
+}
+
+.stat-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.greeting {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.greeting-sub {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 0.125rem;
+}
+
+.progress-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  transition: width 0.6s ease;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.badge-locked {
+  filter: grayscale(1);
+  opacity: 0.35;
+}
+
+.badge-unlocked {
+  animation: badge-pop 0.4s ease;
+}
+
+@keyframes badge-pop {
+  0% { transform: scale(0.8); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.heatmap-cell {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 0.25rem;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.heatmap-cell:hover {
+  transform: scale(1.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--border) 25%, var(--card) 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.page-enter {
+  animation: page-fade-in 0.35s ease-out;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .input {
   width: 100%;
   padding: 0.625rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   background: var(--bg);
   color: var(--fg);
   font-size: 0.875rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .input:focus {
-  outline: 2px solid var(--primary);
-  outline-offset: -1px;
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
 
 .label {
@@ -134,6 +284,7 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 50%;
   background: var(--primary);
   cursor: pointer;
+  box-shadow: 0 2px 6px rgba(255, 107, 107, 0.3);
 }
 
 /* Checkbox styling */
@@ -143,7 +294,7 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   cursor: pointer;
   font-size: 0.875rem;
   transition: all 0.15s;
@@ -151,9 +302,39 @@ input[type="range"]::-webkit-slider-thumb {
 
 .checkbox-group label:has(input:checked) {
   border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  background: var(--primary-light);
 }
 
 .checkbox-group input[type="checkbox"] {
   display: none;
+}
+
+/* Tip card colored border */
+.tip-card {
+  border-left: 3px solid var(--primary);
+  background: linear-gradient(135deg, var(--primary-light), var(--card));
+  border-radius: 1rem;
+  padding: 1rem 1.25rem;
+}
+
+/* Settings option */
+.setting-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.875rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--card);
+}
+
+.setting-option:hover {
+  border-color: var(--primary);
+}
+
+.setting-option.active {
+  border-color: var(--primary);
+  background: var(--primary-light);
 }
